@@ -1,43 +1,544 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+<head>
+    <title>Animate a point along a route</title>
+    <meta property="og:description" content="Use Turf to smoothly animate a point along the distance of a line." />
+    <meta property="og:category" content="Camera & Animation" />
+    <meta property="og:created" content="2025-06-25" />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<style>
+    .overlay {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+    }
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
+    .overlay button {
+        font: 600 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+        background-color: #3386c0;
+        color: #fff;
+        display: inline-block;
+        margin: 0;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+        border-radius: 3px;
+    }
 
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
+    .overlay button:hover {
+        background-color: #4ea0da;
+    }
+
+     .maplibregl-ctrl-attrib {
+      background-color: #0b192c !important; 
+      color: #103460 !important;
+    }
+
+    .maplibregl-ctrl-attrib a {
+        color: #103460 !important;
+    }
+  
+    .maplibregl-ctrl-attrib a:hover {
+        text-decoration: underline !important;
+        color: #FFFFFF !important;
+    }
+
+</style>
+
+<script src="/cityRoutes.js"></script>
+
+<div id="map"></div>
+<div id="root"></div>
+
+<script type="module">
+    import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs';
+    import {
+        lineString,
+        length,
+        along
+    } from 'https://cdn.jsdelivr.net/npm/@turf/turf@7/+esm';
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/bright',
+        center: [16.4, 59.3],
+        zoom: 8.4,
+     
+    });
+
+   
+
+    // 2. The Spread-Out Cities Dataset
+    const spreadCitiesGeoJSON = {
+      "type": "FeatureCollection",
+      "features": [
+          { "type": "Feature", "properties": { "name": "Stockholm" }, "geometry": { "type": "Point", "coordinates": [18.0686, 59.3293] } },
+          { "type": "Feature", "properties": { "name": "Västerås" }, "geometry": { "type": "Point", "coordinates": [16.5448, 59.6099] } },
+          { "type": "Feature", "properties": { "name": "Eskilstuna" }, "geometry": { "type": "Point", "coordinates": [16.5126, 59.3713] } },
+          { "type": "Feature", "properties": { "name": "Uppsala" }, "geometry": { "type": "Point", "coordinates": [17.6389, 59.8586] } },
+          { "type": "Feature", "properties": { "name": "Enköping" }, "geometry": { "type": "Point", "coordinates": [17.0777, 59.6360] } },
+          { "type": "Feature", "properties": { "name": "Märsta" }, "geometry": { "type": "Point", "coordinates": [17.8569, 59.6190] } },
+          { "type": "Feature", "properties": { "name": "Norrtälje" }, "geometry": { "type": "Point", "coordinates": [18.7051, 59.7581] } },
+          { "type": "Feature", "properties": { "name": "Åkersberga" }, "geometry": { "type": "Point", "coordinates": [18.2974, 59.4792] } },
+          { "type": "Feature", "properties": { "name": "Gustavsberg" }, "geometry": { "type": "Point", "coordinates": [18.3881, 59.3256] } },
+          { "type": "Feature", "properties": { "name": "Södertälje" }, "geometry": { "type": "Point", "coordinates": [17.6253, 59.1955] } },
+          { "type": "Feature", "properties": { "name": "Trosa" }, "geometry": { "type": "Point", "coordinates": [17.5501, 58.8978] } },
+          { "type": "Feature", "properties": { "name": "Nynäshamn" }, "geometry": { "type": "Point", "coordinates": [17.9479, 58.9036] } }
+      ]
+    };
+
+    let originName = "Stockholm";
+    let origin = [18.0686, 59.3293];
+
+    let destinationName = "Gustavsberg";
+    let destination = [18.3881, 59.3256];
+
+    let routeName = "Stockholm-Gustavsberg"
+    let selectedRoute = cityRoutes.routes[routeName]
+
+    let routeTrail = {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+        type: 'LineString',
+        coordinates: []}
+    };
+
+    let point = { 
+        type: 'Feature',
+        properties: {
+        bearing: 90
+    },
+    geometry: {
+        type: 'Point',
+        coordinates: [0,0]
+    }
+    };
+
+   let Citydots = {
+    "Stockholm": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [18.0686, 59.3293]
+        }
+    },
+
+    "Västerås": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [16.5448, 59.6099]
+        }
+    },
+
+    "Eskilstuna": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [16.5126, 59.3713]
+        }
+    },
+
+    "Uppsala": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.6389, 59.8586]
+        }
+    },
+
+    "Enköping": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.0777, 59.6360]
+        }
+    },
+
+    "Märsta": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.8569, 59.6190]
+        }
+    },
+
+    "Norrtälje": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [18.7051, 59.7581]
+        }
+    },
+
+    "Åkersberga": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [18.2974, 59.4792]
+        }
+    },
+
+    "Gustavsberg": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [18.3881, 59.3256]
+        }
+    },
+
+    "Södertälje": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.6253, 59.1955]
+        }
+    },
+
+    "Trosa": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.5501, 58.8978]
+        }
+    },
+
+    "Nynäshamn": {
+        type: "Feature",
+        properties: { bearing: 90, active: false },
+        geometry: {
+            type: "Point",
+            coordinates: [17.9479, 58.9036]
+        }
+    }
+};
+
+    function getCityDotsGeoJSON() {
+    return {
+        type: "FeatureCollection",
+        features: Object.entries(Citydots).map(([city, feature]) => ({
+            ...feature,
+            properties: {
+                ...feature.properties,
+                city: city
+            }
+        }))
+    };
+    }  
+
+
+    function pickRandomCity() {
+
+        // Set active colors false
+        Object.values(Citydots).forEach(cityDot => {
+            cityDot.properties.active = false;
+        });
+
+        origin = destination;
+        originName = destinationName;
+
+        let randomIndex;
+
+        do {
+            randomIndex = Math.floor(
+                Math.random() * spreadCitiesGeoJSON.features.length
+            );
+        } while (
+            spreadCitiesGeoJSON.features[randomIndex].geometry.coordinates[0] === origin[0] &&
+            spreadCitiesGeoJSON.features[randomIndex].geometry.coordinates[1] === origin[1]
+        );
+
+        destination =
+            spreadCitiesGeoJSON.features[randomIndex].geometry.coordinates;
+
+        destinationName =
+            spreadCitiesGeoJSON.features[randomIndex].properties.name;
+
+        // Try normal direction
+        let forwardName = `${originName}-${destinationName}`;
+        let reverseName = `${destinationName}-${originName}`;
+
+
+        if (cityRoutes.routes[forwardName]) {
+
+            routeName = forwardName;
+            selectedRoute = cityRoutes.routes[forwardName];
+
+        } else if (cityRoutes.routes[reverseName]) {
+
+            routeName = forwardName;
+
+            const originalRoute = cityRoutes.routes[reverseName];
+
+            selectedRoute = {
+                ...originalRoute,
+                coordinates: [...originalRoute.coordinates].reverse()
+            };
+
+        } else {
+
+            console.error("NO ROUTE FOUND:", forwardName);
+            return false;
+        }
+
+        console.log("NEW ROUTE:", routeName);
+        console.log("FIRST:", selectedRoute.coordinates[0]);
+        console.log("LAST:", selectedRoute.coordinates[selectedRoute.coordinates.length - 1]);
+
+        // Set active colors true
+        Citydots[destinationName].properties.active = true;
+        Citydots[originName].properties.active = true;
+
+        return true;
+    }
+
+map.on('load', () => {
+    const layers = map.getStyle().layers;
+
+    layers.forEach((layer) => {
+        if (layer['source-layer'] === 'boundary' || layer.id.includes('admin') || layer.id.includes('boundary')) {
+            map.setLayoutProperty(layer.id, 'visibility', 'none');
+            return;
+        }
+        if (layer.id.includes('water') && layer.type === 'fill') {
+            // 1. Set your custom flat dark blue color onto the water vector
+            map.setPaintProperty(layer.id, 'fill-color', '#103460');
+            map.setPaintProperty(layer.id, 'fill-opacity', 1.0);
+
+        } else if (layer.id == 'ferry') {
+          // 7. Set your custom flat dark blue color onto the building vector
+          map.setLayoutProperty('ferry', 'visibility', 'none');
+        } else if (layer.id.includes('land') && layer.type === 'fill') {
+            
+            // 3. Set your custom flat dark blue color onto the physical terrain vector
+            map.setPaintProperty(layer.id, 'fill-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'fill-opacity', 1.0);
+
+        } else if ((layer.id.includes('road') || (layer.id.includes('highway') || layer.id.includes('motorway'))) && layer.type === 'line') {
+            // 4. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'line-color', '#081121');
+            map.setPaintProperty(layer.id, 'line-opacity', 1.0);
+        } else if (layer.type === 'fill') {
+            // 5. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'fill-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'fill-opacity', 1.0);
+        } else if (layer.type === 'line') {
+            // 6. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'line-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'line-opacity', 1.0);
+        } else if (layer.type === 'symbol') {
+            map.setLayoutProperty(layer.id, 'visibility', 'none')
+        } else if (layer.type === 'circle') {
+            // 8. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'circle-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'circle-opacity', 1.0);
+        } else if (layer.type === 'raster') {
+            // 9. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'raster-opacity', 1.0);
+        } else if (layer.type === 'hillshade') {
+            // 10. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'hillshade-shadow-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'hillshade-highlight-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'hillshade-accent-color', '#0B192C');
+        } else if (layer.type === 'background') {
+            // 11. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'background-color', '#0B192C');
+        } else if (layer.type === 'fill-extrusion') {
+            // 12. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'fill-extrusion-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'fill-extrusion-opacity', 1.0);
+        } else if (layer.type === 'heatmap') {
+            // 13. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'heatmap-color', '#0B192C');
+            map.setPaintProperty(layer.id, 'heatmap-opacity', 1.0);
+        } else if (layer.type === 'line-gradient') {
+            // 14. Set your custom flat dark blue color onto the building vector
+            map.setPaintProperty(layer.id, 'line-gradient', '#0B192C');
+            map.setPaintProperty(layer.id, 'line-opacity', 1.0);
+        }  
+    }); 
+    
+    // Add a source and layer displaying a point which will be animated in a circle.
+    map.addSource('route', {
+        'type': 'geojson',
+        'data': routeTrail
+    });
+
+    map.addSource('point', {
+        'type': 'geojson',
+        'data': point
+    });
+
+    map.addLayer({
+        id: 'route-glow',
+        source: 'route',
+        type: 'line',
+        paint: {
+            'line-width': 10,
+            'line-color': '#C65A00',
+            'line-opacity': 0.4,
+            'line-blur': 5
+    }});
+
+    map.addLayer({
+        id: 'route',
+        source: 'route',
+        type: 'line',
+        paint: {
+            'line-width': 2,
+            'line-color': '#FF9C33',
+            'line-opacity': 1
+    }});
+
+    map.addLayer({
+        id: 'point-glow',
+        source: 'point',
+        type: 'circle',
+        paint: {
+            'circle-radius': 14,
+            'circle-color': '#C65A00',
+            'circle-opacity': 0.45,
+            'circle-blur': 1
+    }});
+
+    map.addLayer({
+        id: 'point',
+        source: 'point',
+        type: 'circle',
+        paint: {
+            'circle-radius': 6,
+            'circle-color': '#FF9C33',
+            'circle-opacity': 1,
+            'circle-blur': 0.05
+    }});
+
+    map.addSource('city-dots', {
+    type: 'geojson',
+    data: {
+        type: 'FeatureCollection',
+        features: Object.values(Citydots)
+    }
+    });
+
+    map.addLayer({
+    id: 'city-glow',
+    source: 'city-dots',
+    type: 'circle',
+    paint: {
+        'circle-radius': 28,
+        'circle-color': [
+            'case',
+            ['get', 'active'],
+            '#FF9C33',  // active → orange
+            '#4A78A8'   // inactive → blue
+            ],
+        'circle-opacity': 0.45,
+        'circle-blur': 1
+    }
+    });
+
+    map.addLayer({
+    id: 'city-dot',
+    source: 'city-dots',
+    type: 'circle',
+    paint: {
+        'circle-radius': 12,
+        'circle-color': [
+            'case',
+            ['get', 'active'],
+            '#FF9C33',  // active → orange
+            '#4A78A8'   // inactive → blue
+            ],
+        'circle-opacity': 1,
+        'circle-blur': 0.05
+    }
+    });
+
+
+    function animate() {
+        const route = lineString(selectedRoute.coordinates);
+        const routeDistance = length(route, {units: 'kilometers'});
+
+        const speed = 50000; // km/h
+       let startTime = null;
+
+        function step(timestamp) {
+
+            if (startTime === null) {
+                startTime = timestamp;
+            }
+
+            const elapsed = timestamp - startTime;
+
+            const duration = (routeDistance / speed) * 3600000;
+            const progress = Math.min(elapsed / duration, 1);
+            const distance = routeDistance * progress;
+
+            const position = along(route, distance, {
+            units: 'kilometers'
+            });
+            
+
+            if (progress >= 1) {
+                console.log("finished");
+                routeTrail.geometry.coordinates.length = 0;
+                if (pickRandomCity()) {
+                    point.geometry.coordinates = origin;
+                    map.getSource('point').setData(point);
+                    map.getSource('route').setData(routeTrail);
+                    // Tell MapLibre the data changed
+                    map.getSource('city-dots').setData(getCityDotsGeoJSON());
+
+                    console.log(Citydots);
+                    console.log(Citydots?.type);
+                    console.log(Citydots?.features?.length);
+                    console.log(Citydots?.features?.[0]);
+
+                    animate();
+                    
+                }
+            } else {
+                point.geometry.coordinates = position.geometry.coordinates;
+                routeTrail.geometry.coordinates.push(position.geometry.coordinates);
+
+                // Update MapLibre visuals
+                map.getSource('point').setData(point);
+                map.getSource('route').setData(routeTrail);
+
+                requestAnimationFrame(step);
+            }
+        }
+    requestAnimationFrame(step);
+    }
+
+    // Start the animation.
+    if (pickRandomCity()) {
+        animate();
+    }
+    console.log("test")
+
+}); 
+
+</script>
+</body>
 </html>
