@@ -7,6 +7,7 @@
     <meta property="og:created" content="2025-06-25" />
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
 
     <style>
         body { margin: 0; padding: 0; }
@@ -37,20 +38,6 @@
         background-color: #4ea0da;
     }
 
-     .maplibregl-ctrl-attrib {
-      background-color: #0b192c !important; 
-      color: #103460 !important;
-    }
-
-    .maplibregl-ctrl-attrib a {
-        color: #103460 !important;
-    }
-  
-    .maplibregl-ctrl-attrib a:hover {
-        text-decoration: underline !important;
-        color: #FFFFFF !important;
-    }
-
 </style>
 
 <script src="%PUBLIC_URL%/cityRoutes.js"></script>
@@ -69,12 +56,16 @@
     const map = new maplibregl.Map({
         container: 'map',
         style: 'https://tiles.openfreemap.org/styles/bright',
-        center: [16.4, 59.3],
-        zoom: 8.4,
-     
+        center: [17.6, 59.4],
+        zoom: 7,
+        dragPan: false,
+        dragRotate: false,
+        scrollZoom: false,
+        boxZoom: false,
+        doubleClickZoom: false,
+        touchZoomRotate: false,
+        keyboard: false,
     });
-
-   
 
     // 2. The Spread-Out Cities Dataset
     const spreadCitiesGeoJSON = {
@@ -94,6 +85,19 @@
           { "type": "Feature", "properties": { "name": "Nynäshamn" }, "geometry": { "type": "Point", "coordinates": [17.9479, 58.9036] } }
       ]
     };
+
+    const cityBounds = spreadCitiesGeoJSON.features.reduce((bounds, feature) => {
+        return bounds.extend(feature.geometry.coordinates);
+    }, new maplibregl.LngLatBounds());
+
+    const fitCityBounds = () => map.fitBounds(cityBounds, {
+        padding: { top: 80, right: 80, bottom: 80, left: 80 },
+        maxZoom: 8.5,
+        duration: 0
+    });
+
+    fitCityBounds();
+    window.addEventListener('resize', fitCityBounds);
 
     let originName = "Stockholm";
     let origin = [18.0686, 59.3293];
